@@ -3,11 +3,12 @@ package com.codechamp.loanApp.service;
 import com.codechamp.loanApp.model.Loan;
 import com.codechamp.loanApp.model.Repayment;
 import com.codechamp.loanApp.model.Subscriber;
-import com.codechamp.loanApp.repository.LoanRepo;
-import com.codechamp.loanApp.repository.RepaymentRepo;
-import com.codechamp.loanApp.repository.SubscriberRepo;
+
+
+import com.codechamp.loanApp.repository.*;
 import lombok.AllArgsConstructor;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -16,12 +17,12 @@ import java.util.List;
 import java.util.Optional;
 
 @Service
-@RequiredArgsConstructor
 @AllArgsConstructor
 public class LoanService {
-    private final SubscriberRepo subscriberRepository;
     private final LoanRepo loanRepository;
     private final RepaymentRepo repaymentRepository;
+    @Value("${loan.age.threshold.months}")
+    private int loanAgeThresholdMonths;
 
     public void makeRepayment(Long loanId, BigDecimal amount) {
         Optional<Loan> optionalLoan = loanRepository.findById(loanId);
@@ -48,7 +49,16 @@ public class LoanService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private void sendSmsNotification(Subscriber subscriber, String message) {
+    public void sendSmsNotification(Subscriber subscriber, String message) {
         // Send SMS notification logic
+    }
+    @Scheduled(cron = "0 0 0 * * *")
+    public void sweepDefaultedLoans() {
+        LocalDateTime thresholdDate = LocalDateTime.now().minusMonths(loanAgeThresholdMonths);
+        List<Loan> defaultedLoans = loanRepository.findByCreatedAtBeforeAndRepaymentsEmpty(thresholdDate);
+        for (Loan loan : defaultedLoans) {
+            // Perform necessary logic to clear the defaulted loan
+            loanRepository.delete(loan);
+        }
     }
 }
